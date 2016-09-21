@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!--<script src="/bower_components/jquery/dist/jquery.js"></script>-->
+	<script src="https://code.jquery.com/jquery-2.2.4.js" integrity="sha256-iT6Q9iMJYuQiMWNd9lDyBUStIq/8PuOW33aOqmvFpqI=" crossorigin="anonymous"></script>
+    <script type="text/javascript">
+
+        function sendMessageToFrame() {
+            var dummyJson = {
+                'uld' : {
+                    'u' : 1,
+                    'l' : 2,
+                    'd' : 3
+                }
+            }
+            window.parent.postMessage(dummyJson,'https://ocr-qa.localhost');
+        }
+
+        $(window).on('message', function (event) {
+            console.log(event.originalEvent.data);
+            $('#messageReceived').html(event.originalEvent.data);
+        })
+
+
+    </script>
+</head>
+<body>
+
+<button id="testSendButton" onclick="sendMessageToFrame()">Check Button</button>
+
+<p>Receive Message</p>
+
+<div id="messageReceived"></div>
+
+</body>
+</html>
+
