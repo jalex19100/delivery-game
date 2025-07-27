@@ -1,0 +1,12 @@
+RewriteEngine On
+
+# Handle front controller pattern
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Enable PHP processing
+AddHandler application/x-httpd-php .php
+
+# Set default index file
+DirectoryIndex index.php 
