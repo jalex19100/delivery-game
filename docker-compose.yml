@@ -1,0 +1,93 @@
+
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: delivery_game_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: delivery_game
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_USER: delivery_user
+      MYSQL_PASSWORD: delivery_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - delivery_network
+
+  # phpMyAdmin for database management
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: delivery_game_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: rootpassword
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    networks:
+      - delivery_network
+
+  # Delivery Game Application
+  app:
+    build: .
+    container_name: delivery_game_app
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www/html
+      - ./public:/var/www/html/public
+      - ./src:/var/www/html/src
+      - ./database:/var/www/html/database
+    environment:
+      - DB_HOST=db
+      - DB_NAME=delivery_game
+      - DB_USER=delivery_user
+      - DB_PASS=delivery_password
+      - DEBUG_MODE=true
+    depends_on:
+      - db
+    networks:
+      - delivery_network
+
+  # Development server with hot reload (optional)
+  dev:
+    build: .
+    container_name: delivery_game_dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/var/www/html
+      - ./public:/var/www/html/public
+      - ./src:/var/www/html/src
+    environment:
+      - DB_HOST=db
+      - DB_NAME=delivery_game
+      - DB_USER=delivery_user
+      - DB_PASS=delivery_password
+      - DEBUG_MODE=true
+    depends_on:
+      - db
+    networks:
+      - delivery_network
+    command: >
+      sh -c "
+        npm install &&
+        npm run dev
+      "
+
+volumes:
+  mysql_data:
+
+networks:
+  delivery_network:
+    driver: bridge 

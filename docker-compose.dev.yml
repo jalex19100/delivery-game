@@ -1,0 +1,102 @@
+
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: delivery_game_db_dev
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: delivery_game
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_USER: delivery_user
+      MYSQL_PASSWORD: delivery_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data_dev:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - delivery_network_dev
+
+  # phpMyAdmin for database management
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: delivery_game_phpmyadmin_dev
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: rootpassword
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    networks:
+      - delivery_network_dev
+
+  # Development PHP Server
+  app_dev:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: delivery_game_app_dev
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www/html
+      - ./public:/var/www/html/public
+      - ./src:/var/www/html/src
+      - ./database:/var/www/html/database
+    environment:
+      - DB_HOST=db
+      - DB_NAME=delivery_game
+      - DB_USER=delivery_user
+      - DB_PASS=delivery_password
+      - DEBUG_MODE=true
+      - XDEBUG_MODE=debug
+      - XDEBUG_CONFIG=client_host=host.docker.internal
+    depends_on:
+      - db
+    networks:
+      - delivery_network_dev
+
+  # Frontend Development Server
+  frontend_dev:
+    image: node:18-alpine
+    container_name: delivery_game_frontend_dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    working_dir: /app
+    environment:
+      - NODE_ENV=development
+    command: >
+      sh -c "
+        npm install &&
+        npm run dev -- --host 0.0.0.0
+      "
+    networks:
+      - delivery_network_dev
+
+  # MailHog for email testing
+  mailhog:
+    image: mailhog/mailhog
+    container_name: delivery_game_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - delivery_network_dev
+
+volumes:
+  mysql_data_dev:
+
+networks:
+  delivery_network_dev:
+    driver: bridge 
