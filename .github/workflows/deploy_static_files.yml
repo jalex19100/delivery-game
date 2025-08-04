@@ -49,6 +49,15 @@ jobs:
         # cp README.md "$DEPLOY_DIR/"
         # cp env.example "$DEPLOY_DIR/"
         
+        # Copy built assets from dist to public/assets/dist
+        if [ -d "dist" ]; then
+          mkdir -p "$DEPLOY_DIR/public/assets/dist"
+          cp -r dist/* "$DEPLOY_DIR/public/assets/dist/"
+          echo "✅ Built assets copied to public/assets/dist/"
+        else
+          echo "⚠️  No dist directory found - assets may not be built"
+        fi
+        
         # Remove development files
         rm -rf "$DEPLOY_DIR/public/assets/dist/node_modules" || true
         rm -rf "$DEPLOY_DIR/public/assets/dist/.git" || true
