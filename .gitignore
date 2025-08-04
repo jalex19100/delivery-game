@@ -1,6 +1,36 @@
-dist
+# Node.js
 node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# PHP
 vendor
+composer.lock
+
+# Environment files
 .env
-.github
+.env.local
+.env.production
+
+# IDE
 .vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Build artifacts
+public/assets/dist/
+build/
+
+# Temporary files
+tmp/
+temp/ 
