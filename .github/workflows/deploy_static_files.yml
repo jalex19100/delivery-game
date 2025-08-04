@@ -43,10 +43,10 @@ jobs:
         # Copy production files
         cp -r public "$DEPLOY_DIR/"
         cp -r src "$DEPLOY_DIR/"
-        cp -r database "$DEPLOY_DIR/"
+        # cp -r database "$DEPLOY_DIR/"
         cp composer.json "$DEPLOY_DIR/"
         cp package.json "$DEPLOY_DIR/"
-        cp README.md "$DEPLOY_DIR/"
+        # cp README.md "$DEPLOY_DIR/"
         cp env.example "$DEPLOY_DIR/"
         
         # Remove development files
@@ -63,6 +63,22 @@ jobs:
       with:
         name: deployment-package
         path: ${{ env.DEPLOY_PACKAGE }}
+        
+    - name: Download deployment package
+      uses: actions/download-artifact@v4
+      with:
+        name: deployment-package
+        path: ./
+        
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.DELIVERY_SSH_PRIVATE_KEY }}
+        
+    - name: Transfer deployment package
+      run: |
+        # Transfer the deployment package to the server
+        scp -o StrictHostKeyChecking=no ${{ env.DEPLOY_PACKAGE }} ${{ secrets.DELIVERY_REMOTE_USER }}@${{ secrets.DELIVERY_REMOTE_HOST }}:/tmp/
         
     - name: Deploy to shared hosting
       uses: appleboy/ssh-action@v1.2.2
