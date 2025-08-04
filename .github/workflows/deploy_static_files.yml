@@ -56,6 +56,7 @@ jobs:
         # Create deployment archive
         tar -czf "${DEPLOY_DIR}.tar.gz" "$DEPLOY_DIR"
         echo "DEPLOY_PACKAGE=${DEPLOY_DIR}.tar.gz" >> $GITHUB_ENV
+        echo "DEPLOY_DIR=$DEPLOY_DIR" >> $GITHUB_ENV
         
     - name: Upload deployment package
       uses: actions/upload-artifact@v4
@@ -64,16 +65,16 @@ jobs:
         path: ${{ env.DEPLOY_PACKAGE }}
         
     - name: Deploy to shared hosting
-      uses: appleboy/ssh-action@v1.0.3
+      uses: appleboy/ssh-action@v1.2.2
       with:
-        host: ${{ secrets.REMOTE_HOST }}
-        username: ${{ secrets.REMOTE_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: ${{ secrets.SSH_PORT || 22 }}
+        host: ${{ secrets.DELIVERY_REMOTE_HOST }}
+        username: ${{ secrets.DELIVERY_REMOTE_USER }}
+        key: ${{ secrets.DELIVERY_SSH_PRIVATE_KEY }}
+        port: ${{ secrets.DELIVERY_SSH_PORT || 22 }}
         script: |
           # Configuration
-          REMOTE_PATH="${{ secrets.REMOTE_PATH || '/public_html/delivery-game' }}"
-          BACKUP_PATH="${{ secrets.BACKUP_PATH || '/public_html/backups' }}"
+          REMOTE_PATH="${{ secrets.DELIVERY_REMOTE_PATH || '/public_html/delivery-game' }}"
+          BACKUP_PATH="${{ secrets.DELIVERY_BACKUP_PATH || '/public_html/backups' }}"
           
           # Create backup of current deployment
           echo "Creating backup..."
@@ -90,15 +91,15 @@ jobs:
           
           # Extract new deployment
           tar -xzf /tmp/${{ env.DEPLOY_PACKAGE }} -C /tmp/
-          cp -r /tmp/deploy-*/* $REMOTE_PATH/
+          cp -r /tmp/${{ env.DEPLOY_DIR }}/* $REMOTE_PATH/
           
           # Set up environment file from secrets
           cd $REMOTE_PATH
           cat > .env << 'EOF'
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASS=${{ secrets.DB_PASS }}
+          DB_HOST=${{ secrets.DELIVERY_DB_HOST }}
+          DB_NAME=${{ secrets.DELIVERY_DB_NAME }}
+          DB_USER=${{ secrets.DELIVERY_DB_USER }}
+          DB_PASS=${{ secrets.DELIVERY_DB_PASS }}
           APP_ENV=production
           APP_DEBUG=false
           EOF
@@ -112,7 +113,7 @@ jobs:
           
           # Clean up
           rm /tmp/${{ env.DEPLOY_PACKAGE }} || true
-          rm -rf /tmp/deploy-* || true
+          rm -rf /tmp/${{ env.DEPLOY_DIR }} || true
           
           echo "Deployment completed successfully!"
           
@@ -121,7 +122,7 @@ jobs:
       run: |
         if [ "${{ job.status }}" == "success" ]; then
           echo "✅ Deployment completed successfully!"
-          echo "Your game is now available at: http://${{ secrets.REMOTE_URL }}/delivery-game"
+          echo "Your game is now available at: http://${{ secrets.DELIVERY_REMOTE_URL }}"
         else
           echo "❌ Deployment failed!"
         fi 

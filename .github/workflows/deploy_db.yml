@@ -37,35 +37,35 @@ jobs:
       if: steps.check-changes.outputs.database_changed == 'true'
       uses: webfactory/ssh-agent@v0.8.0
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        ssh-private-key: ${{ secrets.DELIVERY_SSH_PRIVATE_KEY }}
         
     - name: Transfer database files
       if: steps.check-changes.outputs.database_changed == 'true'
       run: |
         # Create temporary directory on remote server
         DEPLOY_DIR="db-deploy-$(date +%Y%m%d-%H%M%S)"
-        ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} "mkdir -p /tmp/$DEPLOY_DIR"
+        ssh -o StrictHostKeyChecking=no ${{ secrets.DELIVERY_REMOTE_USER }}@${{ secrets.DELIVERY_REMOTE_HOST }} "mkdir -p /tmp/$DEPLOY_DIR"
         
         # Transfer database files
-        scp -o StrictHostKeyChecking=no -r database/* ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}:/tmp/$DEPLOY_DIR/
+        scp -o StrictHostKeyChecking=no -r database/* ${{ secrets.DELIVERY_REMOTE_USER }}@${{ secrets.DELIVERY_REMOTE_HOST }}:/tmp/$DEPLOY_DIR/
         
         echo "DB_DEPLOY_DIR=$DEPLOY_DIR" >> $GITHUB_ENV
         
     - name: Backup and deploy database
       if: steps.check-changes.outputs.database_changed == 'true'
-      uses: appleboy/ssh-action@v1.0.3
+      uses: appleboy/ssh-action@v1.2.2
       with:
-        host: ${{ secrets.REMOTE_HOST }}
-        username: ${{ secrets.REMOTE_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: ${{ secrets.SSH_PORT || 22 }}
+        host: ${{ secrets.DELIVERY_REMOTE_HOST }}
+        username: ${{ secrets.DELIVERY_REMOTE_USER }}
+        key: ${{ secrets.DELIVERY_SSH_PRIVATE_KEY }}
+        port: ${{ secrets.DELIVERY_SSH_PORT || 22 }}
         script: |
           # Configuration
-          DB_HOST="${{ secrets.DB_HOST }}"
-          DB_NAME="${{ secrets.DB_NAME }}"
-          DB_USER="${{ secrets.DB_USER }}"
-          DB_PASS="${{ secrets.DB_PASS }}"
-          BACKUP_PATH="${{ secrets.BACKUP_PATH || '/public_html/backups' }}"
+          DB_HOST="${{ secrets.DELIVERY_DB_HOST }}"
+          DB_NAME="${{ secrets.DELIVERY_DB_NAME }}"
+          DB_USER="${{ secrets.DELIVERY_DB_USER }}"
+          DB_PASS="${{ secrets.DELIVERY_DB_PASS }}"
+          BACKUP_PATH="${{ secrets.DELIVERY_BACKUP_PATH || '/public_html/backups' }}"
           DB_DEPLOY_DIR="/tmp/${{ env.DB_DEPLOY_DIR }}"
           
           echo "🚀 Starting database deployment..."
