@@ -1,0 +1,192 @@
+name: Deploy Database Changes
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'database/**'
+  workflow_dispatch:
+
+jobs:
+  deploy-database:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get full history for detecting changes
+        
+    - name: Check for database changes
+      id: check-changes
+      run: |
+        # Check if database files have changed
+        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^database/"; then
+          echo "database_changed=true" >> $GITHUB_OUTPUT
+          echo "Database files have changed"
+          
+          # List changed files
+          echo "Changed database files:"
+          git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^database/"
+        else
+          echo "database_changed=false" >> $GITHUB_OUTPUT
+          echo "No database changes detected"
+        fi
+        
+    - name: Setup SSH
+      if: steps.check-changes.outputs.database_changed == 'true'
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        
+    - name: Transfer database files
+      if: steps.check-changes.outputs.database_changed == 'true'
+      run: |
+        # Create temporary directory on remote server
+        DEPLOY_DIR="db-deploy-$(date +%Y%m%d-%H%M%S)"
+        ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} "mkdir -p /tmp/$DEPLOY_DIR"
+        
+        # Transfer database files
+        scp -o StrictHostKeyChecking=no -r database/* ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}:/tmp/$DEPLOY_DIR/
+        
+        echo "DB_DEPLOY_DIR=$DEPLOY_DIR" >> $GITHUB_ENV
+        
+    - name: Backup and deploy database
+      if: steps.check-changes.outputs.database_changed == 'true'
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.REMOTE_HOST }}
+        username: ${{ secrets.REMOTE_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT || 22 }}
+        script: |
+          # Configuration
+          DB_HOST="${{ secrets.DB_HOST }}"
+          DB_NAME="${{ secrets.DB_NAME }}"
+          DB_USER="${{ secrets.DB_USER }}"
+          DB_PASS="${{ secrets.DB_PASS }}"
+          BACKUP_PATH="${{ secrets.BACKUP_PATH || '/public_html/backups' }}"
+          DB_DEPLOY_DIR="/tmp/${{ env.DB_DEPLOY_DIR }}"
+          
+          echo "🚀 Starting database deployment..."
+          echo "📁 Deployment directory: $DB_DEPLOY_DIR"
+          
+          # Create backup directory
+          mkdir -p $BACKUP_PATH
+          
+          # Create database backup
+          echo "📦 Creating database backup..."
+          BACKUP_FILE="$BACKUP_PATH/db-backup-$(date +%Y%m%d-%H%M%S).sql"
+          
+          if mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$BACKUP_FILE"; then
+            echo "✅ Database backup created: $BACKUP_FILE"
+            echo "📊 Backup size: $(du -h "$BACKUP_FILE" | cut -f1)"
+          else
+            echo "❌ Database backup failed"
+            exit 1
+          fi
+          
+          # List all SQL files
+          echo "📋 SQL files found:"
+          find $DB_DEPLOY_DIR -name "*.sql" -type f | sort
+          
+          # Execute schema.sql first (if it exists)
+          if [ -f "$DB_DEPLOY_DIR/schema.sql" ]; then
+            echo "🔧 Executing schema.sql..."
+            if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$DB_DEPLOY_DIR/schema.sql"; then
+              echo "✅ schema.sql executed successfully"
+            else
+              echo "❌ Failed to execute schema.sql"
+              echo "Rolling back to backup..."
+              mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$BACKUP_FILE"
+              echo "✅ Database restored from backup"
+              rm -rf $DB_DEPLOY_DIR
+              exit 1
+            fi
+          fi
+          
+          # Execute migration files in order
+          if [ -d "$DB_DEPLOY_DIR/migrations" ]; then
+            echo "🔧 Executing migration files..."
+            cd "$DB_DEPLOY_DIR/migrations"
+            
+            for sql_file in *.sql; do
+              if [ -f "$sql_file" ]; then
+                echo "🔧 Executing migration: $sql_file..."
+                
+                # Execute SQL file
+                if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$sql_file"; then
+                  echo "✅ $sql_file executed successfully"
+                else
+                  echo "❌ Failed to execute $sql_file"
+                  echo "Rolling back to backup..."
+                  
+                  # Restore from backup
+                  mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$BACKUP_FILE"
+                  echo "✅ Database restored from backup"
+                  
+                  # Clean up
+                  rm -rf $DB_DEPLOY_DIR
+                  exit 1
+                fi
+              fi
+            done
+          fi
+          
+          # Execute any other SQL files in root
+          cd $DB_DEPLOY_DIR
+          for sql_file in *.sql; do
+            if [ -f "$sql_file" ] && [ "$sql_file" != "schema.sql" ]; then
+              echo "🔧 Executing $sql_file..."
+              
+              # Execute SQL file
+              if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$sql_file"; then
+                echo "✅ $sql_file executed successfully"
+              else
+                echo "❌ Failed to execute $sql_file"
+                echo "Rolling back to backup..."
+                
+                # Restore from backup
+                mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$BACKUP_FILE"
+                echo "✅ Database restored from backup"
+                
+                # Clean up
+                rm -rf $DB_DEPLOY_DIR
+                exit 1
+              fi
+            fi
+          done
+          
+          # Verify database integrity
+          echo "🔍 Verifying database integrity..."
+          if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SELECT 1;" >/dev/null 2>&1; then
+            echo "✅ Database connection verified"
+            
+            # Show table count
+            TABLE_COUNT=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SHOW TABLES;" | wc -l)
+            echo "📊 Database now contains $((TABLE_COUNT - 1)) tables"
+          else
+            echo "❌ Database connection failed after deployment"
+            exit 1
+          fi
+          
+          # Clean up deployment files
+          rm -rf $DB_DEPLOY_DIR
+          
+          echo "✅ Database deployment completed successfully!"
+          echo "📊 Backup saved at: $BACKUP_FILE"
+          
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          if [ "${{ steps.check-changes.outputs.database_changed }}" == "true" ]; then
+            echo "✅ Database deployment completed successfully!"
+            echo "📊 Database backup created"
+            echo "🔧 SQL files executed"
+          else
+            echo "ℹ️  No database changes detected - deployment skipped"
+          fi
+        else
+          echo "❌ Database deployment failed!"
+        fi 
