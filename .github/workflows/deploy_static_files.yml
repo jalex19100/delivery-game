@@ -47,7 +47,7 @@ jobs:
         cp composer.json "$DEPLOY_DIR/"
         cp package.json "$DEPLOY_DIR/"
         # cp README.md "$DEPLOY_DIR/"
-        cp env.example "$DEPLOY_DIR/"
+        # cp env.example "$DEPLOY_DIR/"
         
         # Remove development files
         rm -rf "$DEPLOY_DIR/public/assets/dist/node_modules" || true
@@ -100,10 +100,7 @@ jobs:
           fi
           
           # Remove old deployment
-          rm -rf $REMOTE_PATH
-          
-          # Create new deployment directory
-          mkdir -p $REMOTE_PATH
+          rm -rf $REMOTE_PATH/* $REMOTE_PATH/.*
           
           # Extract new deployment
           tar -xzf /tmp/${{ env.DEPLOY_PACKAGE }} -C /tmp/
@@ -120,12 +117,38 @@ jobs:
           APP_DEBUG=false
           EOF
           
+          # Install Composer locally if not available
+          if ! command -v composer &> /dev/null; then
+            echo "Installing Composer locally..."
+            if curl -sS https://getcomposer.org/installer | php; then
+              mv composer.phar composer
+              chmod +x composer
+              COMPOSER_CMD="./composer"
+              echo "✅ Composer installed successfully"
+            else
+              echo "❌ Failed to install Composer"
+              echo "⚠️  Skipping PHP dependencies installation"
+              COMPOSER_CMD="false"
+            fi
+          else
+            COMPOSER_CMD="composer"
+            echo "✅ Using system Composer"
+          fi
+          
           # Install PHP dependencies
-          composer install --no-dev --optimize-autoloader
+          if [ "$COMPOSER_CMD" != "false" ]; then
+            $COMPOSER_CMD install --no-dev --optimize-autoloader
+            if [ $? -eq 0 ]; then
+              echo "✅ PHP dependencies installed successfully"
+            else
+              echo "❌ Failed to install PHP dependencies"
+              echo "⚠️  Continuing deployment without dependencies"
+            fi
+          fi
           
           # Set permissions (no sudo needed for shared hosting)
           chmod -R 755 $REMOTE_PATH
-          chmod -R 775 $REMOTE_PATH/database
+          # chmod -R 775 $REMOTE_PATH/database
           
           # Clean up
           rm /tmp/${{ env.DEPLOY_PACKAGE }} || true
