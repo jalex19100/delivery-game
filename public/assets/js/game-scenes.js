@@ -167,21 +167,21 @@ class GameScene extends Phaser.Scene {
     createDeliveryPoints() {
         this.deliveryPoints = this.physics.add.staticGroup();
         
-        // Downtown office
-        this.deliveryPoints.create(125, 125, 'delivery');
-        this.add.text(125, 140, 'Downtown\nOffice', { fontSize: '8px', fill: '#fff', align: 'center' }).setOrigin(0.5);
+        // Downtown office - moved to edge of building cluster
+        this.deliveryPoints.create(125, 175, 'delivery');
+        this.add.text(125, 190, 'Downtown\nOffice', { fontSize: '8px', fill: '#fff', align: 'center' }).setOrigin(0.5);
         
-        // Shopping mall
-        this.deliveryPoints.create(675, 125, 'delivery');
-        this.add.text(675, 140, 'City Mall', { fontSize: '8px', fill: '#fff', align: 'center' }).setOrigin(0.5);
+        // Shopping mall - moved to edge of building cluster
+        this.deliveryPoints.create(675, 175, 'delivery');
+        this.add.text(675, 190, 'City Mall', { fontSize: '8px', fill: '#fff', align: 'center' }).setOrigin(0.5);
         
-        // Industrial park
-        this.deliveryPoints.create(125, 525, 'delivery');
-        this.add.text(125, 540, 'Industrial\nPark', { fontSize: '8px', fill: '#fff', align: 'center' }).setOrigin(0.5);
+        // Industrial park - moved to edge of building cluster
+        this.deliveryPoints.create(125, 475, 'delivery');
+        this.add.text(125, 490, 'Industrial\nPark', { fontSize: '8px', fill: '#fff', align: 'center' }).setOrigin(0.5);
         
-        // Residential area
-        this.deliveryPoints.create(675, 525, 'delivery');
-        this.add.text(675, 540, 'Residential\nArea', { fontSize: '8px', fill: '#fff', align: 'center' }).setOrigin(0.5);
+        // Residential area - moved to edge of building cluster
+        this.deliveryPoints.create(675, 475, 'delivery');
+        this.add.text(675, 490, 'Residential\nArea', { fontSize: '8px', fill: '#fff', align: 'center' }).setOrigin(0.5);
     }
 
     createPickupPoints() {
@@ -249,16 +249,8 @@ class GameScene extends Phaser.Scene {
         // Add mini-map
         this.createMiniMap();
         
-        // Add game instructions
-        this.add.text(10, 10, 'WASD or Arrow Keys: Move\nSPACE: Pickup/Deliver\nESC: Pause', {
-            fontSize: '12px',
-            fill: '#fff',
-            backgroundColor: '#000',
-            padding: { x: 5, y: 5 }
-        });
-        
         // Add score display
-        this.scoreText = this.add.text(10, 80, 'Score: 0', {
+        this.scoreText = this.add.text(10, 10, 'Score: 0', {
             fontSize: '16px',
             fill: '#fff',
             backgroundColor: '#000',
@@ -266,7 +258,7 @@ class GameScene extends Phaser.Scene {
         });
         
         // Add time display
-        this.timeText = this.add.text(10, 110, 'Time: 00:00', {
+        this.timeText = this.add.text(10, 40, 'Time: 00:00', {
             fontSize: '16px',
             fill: '#fff',
             backgroundColor: '#000',
@@ -405,9 +397,6 @@ class GameScene extends Phaser.Scene {
             this.currentDelivery = pickup;
             pickup.setTint(0x00ff00);
             
-            // Show pickup message
-            this.showMessage('Package picked up! Deliver it to a green point.');
-            
             // Update game state
             if (window.deliveryGame) {
                 window.deliveryGame.gameState.currentOrder = {
@@ -415,6 +404,8 @@ class GameScene extends Phaser.Scene {
                     reward: 25,
                     timeLimit: 300
                 };
+                // Show pickup notification using the main game's notification system
+                window.deliveryGame.showNotification('Package picked up! Deliver it to a green point.', 'info');
             }
             
             // Add score
@@ -432,12 +423,12 @@ class GameScene extends Phaser.Scene {
             const timeBonus = Math.max(0, 300 - this.gameTime) * 2;
             const totalReward = 25 + timeBonus;
             
-            // Show delivery message
-            this.showMessage(`Package delivered! +$${totalReward} (${timeBonus > 0 ? `+$${timeBonus} time bonus` : 'no time bonus'})`);
-            
             // Update game state
             if (window.deliveryGame) {
                 window.deliveryGame.completeDelivery();
+                // Show delivery notification using the main game's notification system
+                const bonusText = timeBonus > 0 ? ` (+$${timeBonus} time bonus)` : '';
+                window.deliveryGame.showNotification(`Package delivered! +$${totalReward}${bonusText}`, 'success');
             }
             
             // Add score
@@ -448,22 +439,7 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    showMessage(text) {
-        const message = this.add.text(400, 50, text, {
-            fontSize: '16px',
-            fill: '#fff',
-            backgroundColor: '#000',
-            padding: { x: 10, y: 5 }
-        });
-        message.setOrigin(0.5);
-        
-        this.tweens.add({
-            targets: message,
-            alpha: 0,
-            duration: 3000,
-            onComplete: () => message.destroy()
-        });
-    }
+
 }
 
 // UI Scene for overlays
