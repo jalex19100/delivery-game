@@ -365,16 +365,25 @@ class DeliveryGame {
         
         if (this.gameState.currentOrder) {
             const order = this.gameState.currentOrder;
-            const elapsedTime = Math.floor((Date.now() - order.startTime) / 1000);
-            const remainingTime = Math.max(0, order.timeLimit - elapsedTime);
+            
+            // Validate order structure and provide fallbacks for missing properties
+            const orderType = order.type || 'standard';
+            const destination = order.destination || 'Unknown Location';
+            const reward = order.reward || 25;
+            const timeLimit = order.timeLimit || 300;
+            const reputation = order.reputation || 1;
+            const startTime = order.startTime || Date.now();
+            
+            const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+            const remainingTime = Math.max(0, timeLimit - elapsedTime);
             
             orderInfo.innerHTML = `
                 <h3>Current Delivery</h3>
-                <p><strong>Type:</strong> ${order.type.charAt(0).toUpperCase() + order.type.slice(1)}</p>
-                <p><strong>Destination:</strong> ${order.destination}</p>
-                <p><strong>Reward:</strong> $${order.reward}</p>
+                <p><strong>Type:</strong> ${orderType.charAt(0).toUpperCase() + orderType.slice(1)}</p>
+                <p><strong>Destination:</strong> ${destination}</p>
+                <p><strong>Reward:</strong> $${reward}</p>
                 <p><strong>Time Remaining:</strong> ${this.formatTime(remainingTime)}</p>
-                <p><strong>Reputation:</strong> +${order.reputation}</p>
+                <p><strong>Reputation:</strong> +${reputation}</p>
             `;
         } else {
             orderInfo.innerHTML = `
@@ -397,11 +406,95 @@ class DeliveryGame {
             const savedState = localStorage.getItem('deliveryGameState');
             if (savedState) {
                 const parsedState = JSON.parse(savedState);
-                this.gameState = { ...this.gameState, ...parsedState };
+                
+                // Validate and sanitize the loaded state
+                const sanitizedState = this.sanitizeGameState(parsedState);
+                this.gameState = { ...this.gameState, ...sanitizedState };
             }
         } catch (error) {
             console.error('Failed to load game state:', error);
+            // Clear corrupted state
+            localStorage.removeItem('deliveryGameState');
         }
+    }
+
+    sanitizeGameState(state) {
+        const sanitized = {};
+        
+        // Validate and sanitize each property
+        if (typeof state.money === 'number' && state.money >= 0) {
+            sanitized.money = state.money;
+        }
+        
+        if (typeof state.deliveries === 'number' && state.deliveries >= 0) {
+            sanitized.deliveries = state.deliveries;
+        }
+        
+        if (typeof state.score === 'number' && state.score >= 0) {
+            sanitized.score = state.score;
+        }
+        
+        if (typeof state.time === 'number' && state.time >= 0) {
+            sanitized.time = state.time;
+        }
+        
+        if (typeof state.level === 'number' && state.level >= 1) {
+            sanitized.level = state.level;
+        }
+        
+        if (typeof state.experience === 'number' && state.experience >= 0) {
+            sanitized.experience = state.experience;
+        }
+        
+        if (typeof state.reputation === 'number' && state.reputation >= 0 && state.reputation <= 100) {
+            sanitized.reputation = state.reputation;
+        }
+        
+        if (typeof state.totalEarnings === 'number' && state.totalEarnings >= 0) {
+            sanitized.totalEarnings = state.totalEarnings;
+        }
+        
+        if (typeof state.consecutiveDeliveries === 'number' && state.consecutiveDeliveries >= 0) {
+            sanitized.consecutiveDeliveries = state.consecutiveDeliveries;
+        }
+        
+        // Validate vehicle
+        if (state.vehicle && this.vehicles[state.vehicle]) {
+            sanitized.vehicle = state.vehicle;
+        }
+        
+        // Validate arrays
+        if (Array.isArray(state.inventory)) {
+            sanitized.inventory = state.inventory;
+        }
+        
+        if (Array.isArray(state.completedDeliveries)) {
+            sanitized.completedDeliveries = state.completedDeliveries;
+        }
+        
+        if (Array.isArray(state.failedDeliveries)) {
+            sanitized.failedDeliveries = state.failedDeliveries;
+        }
+        
+        // Validate current order - if invalid, clear it
+        if (state.currentOrder && typeof state.currentOrder === 'object') {
+            const order = state.currentOrder;
+            if (order.type && order.destination && typeof order.reward === 'number' && 
+                typeof order.timeLimit === 'number' && typeof order.reputation === 'number' &&
+                typeof order.startTime === 'number' && order.status === 'active') {
+                sanitized.currentOrder = order;
+            } else {
+                console.warn('Invalid current order found, clearing it');
+                sanitized.currentOrder = null;
+            }
+        }
+        
+        // Validate best time
+        if (typeof state.bestTime === 'number' && state.bestTime > 0) {
+            sanitized.bestTime = state.bestTime;
+        }
+        
+        return sanitized;
     }
 
     showNotification(message, type = 'info') {

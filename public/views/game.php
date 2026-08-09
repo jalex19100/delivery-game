@@ -77,7 +77,7 @@
                         </div>
                         <div class="control-item">
                             <span class="key">SPACE</span>
-                            <span class="action">Pickup/Deliver</span>
+                            <span class="action">Interact</span>
                         </div>
                         <div class="control-item">
                             <span class="key">ESC</span>
